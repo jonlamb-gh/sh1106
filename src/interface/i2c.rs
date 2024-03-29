@@ -1,6 +1,6 @@
 //! SH1106 I2C Interface
 
-use hal;
+use embedded_hal_async::i2c::I2c;
 
 use super::DisplayInterface;
 use crate::{command::Page, Error};
@@ -11,10 +11,7 @@ pub struct I2cInterface<I2C> {
     addr: u8,
 }
 
-impl<I2C> I2cInterface<I2C>
-where
-    I2C: hal::blocking::i2c::Write,
-{
+impl<I2C> I2cInterface<I2C> {
     /// Create new sh1106 I2C interface
     pub fn new(i2c: I2C, addr: u8) -> Self {
         Self { i2c, addr }
@@ -23,7 +20,7 @@ where
 
 impl<I2C, CommE> DisplayInterface for I2cInterface<I2C>
 where
-    I2C: hal::blocking::i2c::Write<Error = CommE>,
+    I2C: I2c<Error = CommE>,
 {
     type Error = Error<CommE, ()>;
 
@@ -31,17 +28,18 @@ where
         Ok(())
     }
 
-    fn send_commands(&mut self, cmds: &[u8]) -> Result<(), Self::Error> {
+    async fn send_commands(&mut self, cmds: &[u8]) -> Result<(), Self::Error> {
         // Copy over given commands to new aray to prefix with command identifier
         let mut writebuf: [u8; 8] = [0; 8];
         writebuf[1..=cmds.len()].copy_from_slice(&cmds);
 
         self.i2c
             .write(self.addr, &writebuf[..=cmds.len()])
+            .await
             .map_err(Error::Comm)
     }
 
-    fn send_data(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+    async fn send_data(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
         // Display is always 128px wide
         const CHUNKLEN: usize = 128;
 
@@ -73,9 +71,13 @@ where
                         0x10, // Upper column address (always zero, base is 10h)
                     ],
                 )
+                .await
                 .map_err(Error::Comm)?;
 
-            self.i2c.write(self.addr, &writebuf).map_err(Error::Comm)?;
+            self.i2c
+                .write(self.addr, &writebuf)
+                .await
+                .map_err(Error::Comm)?;
 
             page += 1;
         }

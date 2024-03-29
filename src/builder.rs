@@ -56,12 +56,13 @@
 //! ```
 
 use core::marker::PhantomData;
+use embedded_hal_async::i2c::I2c;
 use hal::{self, digital::v2::OutputPin};
 
 use crate::{
     displayrotation::DisplayRotation,
     displaysize::DisplaySize,
-    interface::{I2cInterface, SpiInterface},
+    interface::I2cInterface,
     mode::{displaymode::DisplayMode, raw::RawMode},
     properties::DisplayProperties,
 };
@@ -116,7 +117,7 @@ impl Builder {
     /// Finish the builder and use I2C to communicate with the display
     pub fn connect_i2c<I2C, CommE>(self, i2c: I2C) -> DisplayMode<RawMode<I2cInterface<I2C>>>
     where
-        I2C: hal::blocking::i2c::Write<Error = CommE>,
+        I2C: I2c<Error = CommE>,
     {
         let properties = DisplayProperties::new(
             I2cInterface::new(i2c, self.i2c_addr),
@@ -124,31 +125,6 @@ impl Builder {
             self.rotation,
         );
         DisplayMode::<RawMode<I2cInterface<I2C>>>::new(properties)
-    }
-
-    /// Finish the builder and use SPI to communicate with the display
-    ///
-    /// If the Chip Select (CS) pin is not required, [`NoOutputPin`] can be used as a dummy argument
-    ///
-    /// [`NoOutputPin`]: ./struct.NoOutputPin.html
-    pub fn connect_spi<SPI, DC, CS, CommE, PinE>(
-        self,
-        spi: SPI,
-        dc: DC,
-        cs: CS,
-    ) -> DisplayMode<RawMode<SpiInterface<SPI, DC, CS>>>
-    where
-        SPI: hal::blocking::spi::Transfer<u8, Error = CommE>
-            + hal::blocking::spi::Write<u8, Error = CommE>,
-        DC: OutputPin<Error = PinE>,
-        CS: OutputPin<Error = PinE>,
-    {
-        let properties = DisplayProperties::new(
-            SpiInterface::new(spi, dc, cs),
-            self.display_size,
-            self.rotation,
-        );
-        DisplayMode::<RawMode<SpiInterface<SPI, DC, CS>>>::new(properties)
     }
 }
 
